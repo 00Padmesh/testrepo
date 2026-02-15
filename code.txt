@@ -1,0 +1,420 @@
+CONTROL DEFENSE SYSTEMS
+
+
+1. Canaries
+
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
+
+void secret_function()
+{
+	printf("You hijacked the control flow\n");
+	exit(0);
+}
+
+void vulnerable_function(char *str)
+{
+	char buffer[16];
+	strcpy(buffer , str);
+	printf("Input copied : %s\n" , buffer);
+}
+
+int main(int argc , char* argv[])
+{
+	if(argc<2)
+	{
+		printf("Usage : %s input_string \n" , argv[0]);
+		return 1;
+	}
+	vulnerable_function(argv[1]);
+	return 0;
+}
+
+unprotected : gcc -o vuln_unprotected vuln.c -fno-stack-protector -z execstack -no-pie
+protected : gcc -o vuln_canary vuln.c -fstack-protector-all -z execstack -no-pie
+
+./vuln_canary $(python3 -c 'print("A"*40)')
+gdb -q ./vuln_canary
+disas vulnerable_function
+
+
+
+
+2. NX BIT
+
+
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
+
+void secret_function()
+{
+	printf("You hijacked the control flow\n");
+	exit(0);
+}
+
+void vulnerable_function(char *str)
+{
+	char buffer[16];
+	strcpy(buffer , str);
+	printf("Input copied : %s\n" , buffer);
+}
+
+int main(int argc , char* argv[])
+{
+	if(argc<2)
+	{
+		printf("Usage : %s input_string \n" , argv[0]);
+		return 1;
+	}
+	vulnerable_function(argv[1]);
+	return 0;
+}
+
+gcc -o vuln_executable vuln.c -fno-stack-protector -z execstack -no-pie 
+gcc -o vuln_nx vuln.c -fno-stack-protector -z noexecstack -no-pie
+
+readelf -l vuln_execstack
+readelf -l vuln_nx
+
+
+
+ASLR
+
+#include <stdio.h>
+#include <stdlib.h>
+
+void main()
+{
+	int stack_var = 0;
+	int *heap_var = malloc(4);
+	printf("Stack address : %p\n" , &stack_var);
+	printf("Heap address : %p\n" , &heap_var);
+	printf("Main address : %p\n" , main);
+	
+	free(heap_var);
+}
+
+sudo bash -c 'echo 0 > proc/sys/kernel/randomize_va_space'
+sudo bash -c 'echo 2 > proc/sys/kernel/randomize_va_space'
+
+
+ATTACKS
+
+
+1. stack overflow (variable corruption)
+
+#include <stdio.h>
+#include <string.h>
+#include <stdlib.h>
+
+int main(int argc , char *argv[])
+{
+	int secretpass = 0;
+	char buffer[16];
+	if(argc<2)
+	{
+		printf("not enough input");
+		return 1;
+	}
+	strcpy(buffer , argv[1]);
+	printf("Buffer content = %s\n" , buffer);
+	printf("Secret pass = %d\n" , secretpass);
+	if(secretpass!=0)
+	{
+		printf("SUCCESS");
+	}
+	else
+	{
+		printf("FAIL");
+		
+	}
+}
+
+/* gcc -o stack_var stack_var.c -fno-stack-protector -z execstack -no-pie
+./stack_var hello
+/stack_var AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA*/
+
+2. stack overflow (control flow hijacking)
+
+#include <stdio.h>
+#include <string.h>
+#include <stdlib.h>
+
+void secret_function()
+{
+	printf("YOU BROKE IN\n");
+}
+
+void input_handler()
+{
+	char buffer[30];
+	printf("Enter some text");
+	gets(buffer);
+	printf("You entered %s\n" , buffer);
+}
+
+int main()
+{
+	input_handler();
+	printf("Normal execution completed");
+	return 0;
+}
+
+
+/* gcc -o stack_control stack_control.c -O0 -fno-stack-protector -no-pie 
+objdump -d stack_control | grep secret_function
+python3 -c 'print("A"*40 + "\x76\x11\x40\x00\x00\x00\x00\x00")' | ./stack_control*/
+
+
+
+3. heap overflow (data corruption)
+
+#include <stdio.h>
+#include <string.h>
+#include <stdlib.h>
+
+typedef struct
+{
+	char name[20];
+	int priority;
+} userrequest;
+
+int main(int argc , char *argv[])
+{
+	if(argc<3)
+	{
+		printf("Not enough");
+		return 1;
+	}
+	char *description = malloc(20);
+	userrequest *req = malloc(sizeof(userrequest));
+	req->priority = 1;
+	strcpy(req->name , "Guest");
+	strcpy(description , argv[1]);
+	strncpy(req->name , argv[2] , 19);
+	
+	printf("Description : %p\n" , description);
+	printf("Req : %p\n" , req);
+	printf("User %s\n" , req->name);
+	printf("Priority level:%d\n" , req->priority);
+	
+	if(req->priority == 99)
+	{
+		printf("ADMIN ACCESS GRANTED\n");
+	}
+	free(description);
+	free(req);
+	return 0;
+}
+
+
+/* gcc -O0 heap_overflow.c -o heap_overflow
+./heap_overflow hello user
+./heap_overflow $(python3 -c 'print("A"*52 + "BBBB")') user
+./heap_overflow $(python3 -c 'print("A"*52 + "\x63\x00\x00\x00")') user
+*/
+
+
+format string vulnerability
+
+
+#include <stdio.h>
+
+int main()
+{
+	char input[100];
+	printf("Enter something");
+	fgets(input , sizeof(input) , stdin);
+	printf(input);
+}
+
+
+use after free
+
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
+int main()
+{
+	char *ptr = (char *) malloc(20);
+	strcpy(ptr , "Hello world");
+	printf("before free : %s\n" , ptr);
+	free(ptr);
+	printf("After free : %s\n" , ptr);
+	return 0;
+}
+
+
+integer overflow
+
+#include <stdio.h>
+#include <limits.h>
+
+int main() {
+
+    int a = INT_MAX;   // maximum int value
+    int b = 1;
+
+    int result = a + b;   // OVERFLOW
+
+    printf("INT_MAX = %d\n", a);
+    printf("Result  = %d\n", result);
+
+    return 0;
+}
+
+
+SAFE
+
+#include <stdio.h>
+#include <limits.h>
+
+int main() {
+
+    int a = INT_MAX;
+    int b = 1;
+
+    // CHECK BEFORE ADDITION
+    if (a > INT_MAX - b) {
+        printf("Integer overflow detected!\n");
+    } else {
+        int result = a + b;
+        printf("Result = %d\n", result);
+    }
+
+    return 0;
+}
+
+
+WITH MALLOC (UNSAFE)
+
+#include <stdio.h>
+#include <stdlib.h>
+#include <limits.h>
+
+int main() {
+
+    int count = INT_MAX / 2 + 10;   // very large number
+
+    // INTEGER OVERFLOW happens here
+    int total_size = count * sizeof(int);
+
+    printf("Requested size = %d\n", total_size);
+
+    int *arr = (int *)malloc(total_size);
+
+    if (arr == NULL) {
+        printf("Allocation failed\n");
+        return 0;
+    }
+
+    // Writing assuming large allocation
+    arr[0] = 100;   // may be unsafe
+    printf("Value = %d\n", arr[0]);
+
+    free(arr);
+    return 0;
+}
+
+SECURE 
+
+#include <stdio.h>
+#include <stdlib.h>
+#include <limits.h>
+
+int main() {
+
+    int count = INT_MAX / 2 + 10;
+
+    // SAFE CHECK BEFORE MULTIPLICATION
+    if (count > INT_MAX / (int)sizeof(int)) {
+        printf("Integer overflow detected!\n");
+        return 0;
+    }
+
+    int total_size = count * sizeof(int);
+
+    int *arr = (int *)malloc(total_size);
+
+    if (arr == NULL) {
+        printf("Allocation failed\n");
+        return 0;
+    }
+
+    arr[0] = 100;
+    printf("Value = %d\n", arr[0]);
+
+    free(arr);
+    return 0;
+}
+
+
+OPENSSL
+
+
+1. HASH FUNCTIONS
+
+echo -n "Hello world!" | openssl dgst -md5 -binary | xxd
+openssl dgst -md5 -binary | xxd sample.txt
+
+2. HMAC
+
+echo -n "Hello world!" | openssl dgst -sha256 -hmac "secretkey"
+openssl dgst -sha256 -hmac "secretkey" sample.txt
+
+3. CMAC
+
+echo -n "Hello world!" | openssl dgst -mac cmac -macopt cipher:aes-128-cbc -macopt hexkey:00112233445566778899aabbccddeeff
+
+openssl dgst -mac cmac -macopt cipher:aes-128-cbc -macopt hexkey:00112233445566778899aabbccddeeff sample.txt
+
+4. RSA
+
+openssl genpkey -algorithm RSA -out private.pem
+For a specific size : add -pkeyopt rsa_keygen_bits:2048
+
+openssl pkey -in private.pem -pubout -out public.pem
+
+openssl pkeyutl -encrypt -pubin -inkey public.pem -in sample.txt -out encrypted.bin
+
+openssl pkeyutl -decrypt -inkey private.pem -in encrypted.bin -out decrypted.txt
+
+5. COMMUNICATION SYSTEM USING RSA
+
+openssl genpkey -algorithm RSA -out private.pem
+openssl pkey -in private.pem -pubout -out public.pem
+
+
+Generate certificate signing request
+
+openssl req -new -key private.pem -out request.csr
+
+Create self signed certificate 
+
+openssl x509 -req -in request.csr -signkey private.pem -out certificate.crt -days 365
+
+openssl pkeyutl -encrypt -pubin -inkey public.pem -in sample.txt -out encrypted.bin
+openssl pkeyutl -decrypt -inkey private.pem -in encrypted.bin -out decrypted.txt
+
+
+openssl s_server -cert certificate.crt -key private.pem -port 4433
+openssl s_client -connect localhost:4433
+
+SIGN USING RSA
+
+openssl rand 64 > message.bin
+openssl dgst -sha256 -sign private.pem -out signature.bin message.bin
+openssl dgst -sha256 -verify public.pem -signature signature.bin message.bin
+
+openssl passwd -1 salt abcd test : GENERATE MD5 PASSWD
+
+echo '$1$abcd$XyZabc1234567890' | cut -d '$' -f3 : abcd
+echo '$1$abcd$XyZabc1234567890' | cut -d '$' -f4 : XyZabc1234567890
+
+
+
