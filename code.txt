@@ -37,7 +37,7 @@ protected : gcc -o vuln_canary vuln.c -fstack-protector-all -z execstack -no-pie
 
 ./vuln_canary $(python3 -c 'print("A"*40)')
 gdb -q ./vuln_canary
-disas vulnerable_function
+disas vulnerable_function	
 
 
 
@@ -170,6 +170,43 @@ objdump -d stack_control | grep secret_function
 python3 -c 'print("A"*40 + "\x76\x11\x40\x00\x00\x00\x00\x00")' | ./stack_control*/
 
 
+SAFE
+
+#include <stdio.h>
+#include <string.h>
+#include <stdlib.h>
+
+void secret_function()
+{
+    printf("YOU BROKE IN\n");
+}
+
+void input_handler()
+{
+    char buffer[30];
+
+    printf("Enter some text: ");
+
+    // Safe input
+    if(fgets(buffer, sizeof(buffer), stdin) != NULL)
+    {
+        // Remove newline if present
+        buffer[strcspn(buffer, "\n")] = '\0';
+
+        printf("You entered %s\n", buffer);
+    }
+}
+
+int main()
+{
+    input_handler();
+
+    printf("Normal execution completed");
+
+    return 0;
+}
+
+
 
 3. heap overflow (data corruption)
 
@@ -217,6 +254,69 @@ int main(int argc , char *argv[])
 ./heap_overflow $(python3 -c 'print("A"*52 + "BBBB")') user
 ./heap_overflow $(python3 -c 'print("A"*52 + "\x63\x00\x00\x00")') user
 */
+
+SAFE
+
+#include <stdio.h>
+#include <string.h>
+#include <stdlib.h>
+
+typedef struct
+{
+    char name[20];
+    int priority;
+} userrequest;
+
+int main(int argc , char *argv[])
+{
+    if(argc < 3)
+    {
+        printf("Not enough arguments\n");
+        return 1;
+    }
+
+    char *description = malloc(20);
+    if(description == NULL)
+    {
+        printf("Memory allocation failed\n");
+        return 1;
+    }
+
+    userrequest *req = malloc(sizeof(userrequest));
+    if(req == NULL)
+    {
+        printf("Memory allocation failed\n");
+        free(description);
+        return 1;
+    }
+
+    req->priority = 1;
+
+    strncpy(req->name , "Guest" , sizeof(req->name) - 1);
+    req->name[sizeof(req->name) - 1] = '\0';
+
+    strncpy(description , argv[1] , 19);
+    description[19] = '\0';
+
+    strncpy(req->name , argv[2] , sizeof(req->name) - 1);
+    req->name[sizeof(req->name) - 1] = '\0';
+
+    printf("Description : %p\n" , description);
+    printf("Req : %p\n" , req);
+    printf("User %s\n" , req->name);
+    printf("Priority level:%d\n" , req->priority);
+
+    if(req->priority == 99)
+    {
+        printf("ADMIN ACCESS GRANTED\n");
+    }
+
+    free(description);
+    free(req);
+
+    return 0;
+}
+
 
 
 format string vulnerability
@@ -362,6 +462,7 @@ OPENSSL
 echo -n "Hello world!" | openssl dgst -md5 -binary | xxd
 openssl dgst -md5 -binary | xxd sample.txt
 
+
 2. HMAC
 
 echo -n "Hello world!" | openssl dgst -sha256 -hmac "secretkey"
@@ -415,6 +516,3 @@ openssl passwd -1 salt abcd test : GENERATE MD5 PASSWD
 
 echo '$1$abcd$XyZabc1234567890' | cut -d '$' -f3 : abcd
 echo '$1$abcd$XyZabc1234567890' | cut -d '$' -f4 : XyZabc1234567890
-
-
-
