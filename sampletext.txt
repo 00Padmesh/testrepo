@@ -502,81 +502,96 @@ Question 3
 int privateVar;
 #pragma omp threadprivate(privateVar)
 
-int main() {
-
+int main()
+{
     int mat[SIZE][SIZE];
     int vec[SIZE];
     int result[SIZE] = {0};
     int sum = 0;
+    int max = 0;
 
     srand(time(NULL));
 
     // Initialize matrix and vector
-    for(int i = 0; i < SIZE; i++) {
-        vec[i] = rand() % 10;
+    for(int i = 0; i < SIZE; i++)
+    {
+        vec[i] = rand() % 10 + 1;
 
-        for(int j = 0; j < SIZE; j++) {
-            mat[i][j] = rand() % 10;
+        for(int j = 0; j < SIZE; j++)
+        {
+            mat[i][j] = rand() % 10 + 1;
         }
     }
 
     #pragma omp parallel
     {
         int tid = omp_get_thread_num();
+        privateVar = tid + 1;   // thread-specific value
 
-        // threadprivate variable
-        privateVar = tid + 1;
-
-        // Only one thread prints start message
+        // Print start message once
         #pragma omp single
         {
-            printf("Starting parallel matrix-vector computation...\n");
+            printf("Starting matrix-vector multiplication...\n");
         }
 
         // Parallel matrix-vector multiplication
         #pragma omp for
-        for(int i = 0; i < SIZE; i++) {
-            for(int j = 0; j < SIZE; j++) {
+        for(int i = 0; i < SIZE; i++)
+        {
+            for(int j = 0; j < SIZE; j++)
+            {
                 result[i] += mat[i][j] * vec[j];
             }
 
             printf("Thread %d computed result[%d] = %d\n", tid, i, result[i]);
         }
 
-        // Independent parallel sections
+        // Independent computations
         #pragma omp sections
         {
+            // Section 1: Compute sum
             #pragma omp section
             {
                 int local_sum = 0;
-                for(int i = 0; i < SIZE; i++) {
+                for(int i = 0; i < SIZE; i++)
+                {
                     local_sum += result[i];
                 }
 
                 sum = local_sum;
-                printf("Thread %d computed sum of result = %d\n",
+
+                printf("Thread %d computed SUM = %d\n",
                        omp_get_thread_num(), sum);
             }
 
+            // Section 2: Compute maximum
             #pragma omp section
             {
-                printf("Thread %d performing independent task with privateVar = %d\n",
-                       omp_get_thread_num(), privateVar);
+                int local_max = result[0];
+
+                for(int i = 1; i < SIZE; i++)
+                {
+                    if(result[i] > local_max)
+                        local_max = result[i];
+                }
+
+                max = local_max;
+
+                printf("Thread %d computed MAX = %d\n",
+                       omp_get_thread_num(), max);
             }
         }
     }
 
     printf("\nFinal Result Vector:\n");
-    for(int i = 0; i < SIZE; i++) {
+    for(int i = 0; i < SIZE; i++)
         printf("%d ", result[i]);
-    }
 
     printf("\nTotal Sum = %d\n", sum);
+    printf("Maximum Value = %d\n", max);
 
     return 0;
 }
-
-
 
 
 
