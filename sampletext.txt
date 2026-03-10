@@ -1,0 +1,1087 @@
+ASSIGNMENT 1
+
+Question 1
+
+#include <stdio.h>
+#include <omp.h>
+
+int main()
+{
+	#pragma omp parallel
+	{
+		int tid = omp_get_thread_num();
+		int numthreads = omp_get_num_threads();
+		printf("Hello from %d out of %d thread\n" , tid , numthreads);
+	}
+}
+
+Question 2
+
+#include <stdio.h>
+#include <omp.h>
+
+#define size 1000000
+
+int main()
+{
+	static int arr[size];
+	for(int i = 0 ; i<size ; i++)
+	{
+		arr[i] = i+1;
+	}
+	int threads_count[] = {2,4,6,8};
+	for(int t = 0 ; t<4 ; t++)
+	{
+		long long sum = 0;
+		int threads = threads_count[t];
+		omp_set_num_threads(threads);
+		double starttime = omp_get_wtime();
+		
+		#pragma omp parallel for reduction(+:sum)
+		for(int i = 0 ; i<size ; i++)
+		{
+			sum+=arr[i];
+		}
+		double end_time = omp_get_wtime();
+		printf("Threads : %d\n" , threads);
+		printf("sum : %lld\n" , sum);
+		printf("Time taken : %f\n" , end_time - starttime);
+	}
+}
+
+
+
+ASSIGNMENT 2
+
+Question 1
+
+#include <stdio.h>
+#include <stdlib.h>
+#include <omp.h>
+#include <time.h>
+
+#define SIZE 1000
+
+int main() {
+
+    int vec1[SIZE], vec2[SIZE];
+    long long serial_dot = 0;
+    long long parallel_dot = 0;
+
+    double start, end;
+
+    srand(time(NULL));
+
+    // Initialize vectors with random values (1–100)
+    for(int i = 0; i < SIZE; i++) {
+        vec1[i] = rand() % 100 + 1;
+        vec2[i] = rand() % 100 + 1;
+    }
+
+    // Serial Dot Product
+    start = omp_get_wtime();
+
+    for(int i = 0; i < SIZE; i++) {
+        serial_dot += vec1[i] * vec2[i];
+    }
+
+    end = omp_get_wtime();
+    double serial_time = end - start;
+
+    // Parallel Dot Product
+    start = omp_get_wtime();
+
+    #pragma omp parallel for reduction(+:parallel_dot)
+    for(int i = 0; i < SIZE; i++) {
+        parallel_dot += vec1[i] * vec2[i];
+    }
+
+    end = omp_get_wtime();
+    double parallel_time = end - start;
+
+    // Print results
+    printf("Serial Dot Product = %lld\n", serial_dot);
+    printf("Parallel Dot Product = %lld\n", parallel_dot);
+
+    printf("\nExecution Time:\n");
+    printf("Serial Time = %f seconds\n", serial_time);
+    printf("Parallel Time = %f seconds\n", parallel_time);
+
+    return 0;
+}
+
+
+Question 2
+
+#include <stdio.h>
+#include <omp.h>
+#include <stdlib.h>
+#include <time.h>
+
+#define threads 8
+#define N 1000000
+
+
+int main()
+{
+	int A[threads];
+	int max = 0;
+	srand(time(NULL));
+	#pragma omp parallel num_threads(threads) shared(A,max)
+	{
+		int tid = omp_get_thread_num();
+		A[tid] = rand()%100+1;
+		
+		#pragma omp barrier
+		
+		#pragma omp single
+		{
+			max = A[0];
+			for(int i = 1 ; i<threads ; i++)
+			{
+				if(A[i]>max)
+				{
+					max = A[i];
+				}
+			}
+			printf("%d\n" , max);
+		}
+	}
+}
+
+
+#include <stdio.h>
+#include <stdlib.h>
+#include <omp.h>
+#include <time.h>
+
+#define THREADS 8
+
+int main() {
+
+    int numbers[THREADS];
+    int max = 0;
+
+    srand(time(NULL));
+
+    #pragma omp parallel num_threads(THREADS) shared(numbers) reduction(max:max)
+    {
+        int tid = omp_get_thread_num();
+
+        // Each thread generates a random number
+        numbers[tid] = rand() % 100 + 1;
+
+        printf("Thread %d generated number %d\n", tid, numbers[tid]);
+
+        // Ensure all threads generate numbers first
+        #pragma omp barrier
+
+        // Reduction to compute maximum
+        if(numbers[tid] > max)
+            max = numbers[tid];
+    }
+
+    printf("\nGenerated Numbers:\n");
+    for(int i = 0; i < THREADS; i++)
+        printf("%d ", numbers[i]);
+
+    printf("\nMaximum value = %d\n", max);
+
+    return 0;
+}
+
+Question 3
+
+#include <stdio.h>
+#include <omp.h>
+
+int counter = 0;
+#pragma omp threadprivate(counter)
+
+int main()
+{
+	#pragma omp parallel num_threads(4)
+	{
+		int tid = omp_get_thread_num();
+		counter = 0;
+		for(int i = 0 ; i<10 ; i++)
+		{
+			counter+=tid;
+		}
+		
+		printf("%d %d\n" , tid , counter);
+	}
+}
+
+
+ASSIGNMENT 3
+
+
+Question 1
+
+#include <stdio.h>
+#include <omp.h>
+
+void subprogram()
+{
+    // (c) Subprogram outside parallel region
+    printf("(c) Subprogram outside parallel region | Thread %d\n",
+           omp_get_thread_num());
+
+    #pragma omp parallel
+    {
+        // (d) Parallel region inside subprogram
+        printf("(d) Inside subprogram parallel region | Thread %d\n",
+               omp_get_thread_num());
+    }
+}
+
+int main()
+{
+    // Enable nested parallelism
+    omp_set_nested(1);
+
+    // (a) Main outside parallel region
+    printf("(a) Main outside parallel region\n");
+
+    // Call subprogram outside parallel region
+    subprogram();
+
+    #pragma omp parallel num_threads(2)
+    {
+        // (b) Parallel region in main
+        printf("(b) Inside main parallel region | Thread %d\n",
+               omp_get_thread_num());
+
+        // Call subprogram inside parallel region
+        subprogram();
+    }
+
+    return 0;
+}
+
+
+Question 2
+
+#include <stdio.h>
+#include <stdlib.h>
+#include <omp.h>
+#include <time.h>
+
+#define SIZE 1000
+
+int main() {
+
+    int vec1[SIZE], vec2[SIZE];
+    long long serial_dot = 0;
+    long long parallel_dot = 0;
+
+    srand(time(NULL));
+
+    // Initialize vectors
+    for(int i = 0; i < SIZE; i++) {
+        vec1[i] = rand() % 100 + 1;
+        vec2[i] = rand() % 100 + 1;
+    }
+
+    // -------- SERIAL DOT PRODUCT --------
+    for(int i = 0; i < SIZE; i++) {
+        serial_dot += vec1[i] * vec2[i];
+    }
+
+    // Enable nested parallelism
+    omp_set_nested(1);
+
+    // -------- NESTED PARALLEL DOT PRODUCT --------
+    #pragma omp parallel
+    {
+        int tid = omp_get_thread_num();
+        int num_threads = omp_get_num_threads();
+
+        int chunk = SIZE / num_threads;
+        int start = tid * chunk;
+        int end = (tid == num_threads - 1) ? SIZE : start + chunk;
+
+        long long local_sum = 0;
+
+        // Inner parallel region
+        #pragma omp parallel for reduction(+:local_sum)
+        for(int i = start; i < end; i++) {
+            local_sum += vec1[i] * vec2[i];
+        }
+
+        // Combine partial results safely
+        #pragma omp atomic
+        parallel_dot += local_sum;
+    }
+
+    // -------- PRINT RESULTS --------
+    printf("Serial Dot Product   = %lld\n", serial_dot);
+    printf("Parallel Dot Product = %lld\n", parallel_dot);
+
+    if(serial_dot == parallel_dot)
+        printf("Result Verified: Correct\n");
+    else
+        printf("Result Incorrect\n");
+
+    return 0;
+}
+
+
+
+ASSIGNMENT 4
+
+Question 1
+
+#include <stdio.h>
+#include <omp.h>
+
+int computeA()
+{
+	return 10;
+}
+
+int computeB()
+{
+	return 20;
+}
+
+int main()
+{
+	int sharedvar = 0;
+	int result = 0;
+	#pragma omp parallel reduction(+:result)
+	{
+		#pragma omp single
+		{
+			int tid = omp_get_thread_num();
+			sharedvar = 5;
+			printf("%d , %d\n" , tid , sharedvar);
+		}
+		
+		#pragma omp sections
+		{
+			#pragma omp section
+			{
+				int val = computeA() * sharedvar;
+				result+=val;
+			}
+			#pragma omp section
+			{
+				int val = computeB() * sharedvar;
+				result+=val;
+			}
+		}
+	}
+	printf("%d" , result);
+}
+
+
+Question 2
+
+
+#include <stdio.h>
+#include <stdlib.h>
+#include <omp.h>
+#include <time.h>
+
+#define N 1000000
+
+int sharedVar;
+int privateVar;
+
+#pragma omp threadprivate(privateVar)
+
+int computeA() {
+    return 5;
+}
+
+int computeB() {
+    return 10;
+}
+
+int main() {
+
+    int vec1[N], vec2[N];
+    long long serial_dot = 0;
+    long long parallel_dot = 0;
+
+    double start, end;
+
+    srand(time(NULL));
+
+    // Initialize vectors
+    for(int i = 0; i < N; i++) {
+        vec1[i] = rand() % 100 + 1;
+        vec2[i] = rand() % 100 + 1;
+    }
+
+    // SERIAL DOT PRODUCT
+    start = omp_get_wtime();
+
+    for(int i = 0; i < N; i++) {
+        serial_dot += vec1[i] * vec2[i];
+    }
+
+    end = omp_get_wtime();
+    double serial_time = end - start;
+
+    // PARALLEL DOT PRODUCT
+    start = omp_get_wtime();
+
+    #pragma omp parallel for reduction(+:parallel_dot)
+    for(int i = 0; i < N; i++) {
+        parallel_dot += vec1[i] * vec2[i];
+    }
+
+    end = omp_get_wtime();
+    double parallel_time = end - start;
+
+    // Parallel region for sections
+    int resultA = 0;
+    int resultB = 0;
+
+    #pragma omp parallel
+    {
+        int tid = omp_get_thread_num();
+
+        // Each thread has its own privateVar
+        privateVar = tid + 2;
+
+        // Only one thread initializes sharedVar
+        #pragma omp single
+        {
+            sharedVar = 3;
+            printf("Thread %d initialized sharedVar = %d\n", tid, sharedVar);
+        }
+
+        #pragma omp sections
+        {
+            #pragma omp section
+            {
+                int tid = omp_get_thread_num();
+                resultA = computeA() * sharedVar * privateVar;
+                printf("Thread %d executing Section A -> Result = %d\n", tid, resultA);
+            }
+
+            #pragma omp section
+            {
+                int tid = omp_get_thread_num();
+                resultB = computeB() * sharedVar * privateVar;
+                printf("Thread %d executing Section B -> Result = %d\n", tid, resultB);
+            }
+        }
+    }
+
+    printf("\n--- Results ---\n");
+    printf("Serial Dot Product = %lld\n", serial_dot);
+    printf("Parallel Dot Product = %lld\n", parallel_dot);
+
+    printf("Section A Result = %d\n", resultA);
+    printf("Section B Result = %d\n", resultB);
+
+    printf("\nExecution Time:\n");
+    printf("Serial Time = %f seconds\n", serial_time);
+    printf("Parallel Time = %f seconds\n", parallel_time);
+
+    return 0;
+}
+
+
+
+Question 3
+
+
+#include <stdio.h>
+#include <stdlib.h>
+#include <omp.h>
+#include <time.h>
+
+#define SIZE 5
+
+int privateVar;
+#pragma omp threadprivate(privateVar)
+
+int main() {
+
+    int mat[SIZE][SIZE];
+    int vec[SIZE];
+    int result[SIZE] = {0};
+    int sum = 0;
+
+    srand(time(NULL));
+
+    // Initialize matrix and vector
+    for(int i = 0; i < SIZE; i++) {
+        vec[i] = rand() % 10;
+
+        for(int j = 0; j < SIZE; j++) {
+            mat[i][j] = rand() % 10;
+        }
+    }
+
+    #pragma omp parallel
+    {
+        int tid = omp_get_thread_num();
+
+        // threadprivate variable
+        privateVar = tid + 1;
+
+        // Only one thread prints start message
+        #pragma omp single
+        {
+            printf("Starting parallel matrix-vector computation...\n");
+        }
+
+        // Parallel matrix-vector multiplication
+        #pragma omp for
+        for(int i = 0; i < SIZE; i++) {
+            for(int j = 0; j < SIZE; j++) {
+                result[i] += mat[i][j] * vec[j];
+            }
+
+            printf("Thread %d computed result[%d] = %d\n", tid, i, result[i]);
+        }
+
+        // Independent parallel sections
+        #pragma omp sections
+        {
+            #pragma omp section
+            {
+                int local_sum = 0;
+                for(int i = 0; i < SIZE; i++) {
+                    local_sum += result[i];
+                }
+
+                sum = local_sum;
+                printf("Thread %d computed sum of result = %d\n",
+                       omp_get_thread_num(), sum);
+            }
+
+            #pragma omp section
+            {
+                printf("Thread %d performing independent task with privateVar = %d\n",
+                       omp_get_thread_num(), privateVar);
+            }
+        }
+    }
+
+    printf("\nFinal Result Vector:\n");
+    for(int i = 0; i < SIZE; i++) {
+        printf("%d ", result[i]);
+    }
+
+    printf("\nTotal Sum = %d\n", sum);
+
+    return 0;
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+ASSIGNMENT 5
+
+Question 1
+
+#include <stdio.h>
+#include <omp.h>
+
+#define NUM_THREADS 4
+
+int some_calculation(int thread_id)
+{
+	return (thread_id+1)*10;
+}
+
+int main()
+{
+	int x[NUM_THREADS+1] = {0};
+	int y[NUM_THREADS] = {0};
+	omp_set_num_threads(NUM_THREADS);
+	
+	printf("Starting parallel region\n");
+	
+	#pragma omp parallel
+	{
+		int mytid = omp_get_thread_num();
+		x[mytid] = some_calculation(mytid);
+		printf("%d %d %d\n" , mytid , mytid , x[mytid]);
+		
+		
+		#pragma omp barrier
+		y[mytid] = x[mytid] + x[mytid+1];
+	}
+}
+
+
+Question 2
+
+
+#include <stdio.h>
+#include <omp.h>
+
+#define N 10
+
+int somecalculation(int index)
+{
+	return (index+1)*10;
+}
+
+int main()
+{
+	int x[N] = {0};
+	int y[N-1] = {0};
+	omp_set_num_threads(4);
+	printf("Starting parallel region\n");
+	
+	#pragma omp parallel
+	{
+		#pragma omp for
+		for(int i = 0 ; i<N ; i++)
+		{
+			x[i] = somecalculation(i);
+			printf("%d %d %d\n" , i , i , x[i]);
+		}
+		
+		#pragma omp for
+		for(int i = 0 ; i<N-1 ; i++)
+		{
+			y[i] = x[i]+x[i+1];
+			printf("%d %d %d\n" , i , i , y[i]);
+		}
+	}
+}
+
+
+
+#include <stdio.h>
+#include <omp.h>
+
+#define N 10 // Define the size of the arrays
+
+// Dummy function to replace "some_function" from the slide
+int some_function(int value) {
+    return value * 10; 
+}
+
+int main() {
+    int a[N] = {0};
+    int b[N] = {0};
+
+    // Explicitly set the number of threads for this test
+    omp_set_num_threads(2);
+
+    printf("Starting parallel execution...\n");
+    printf("--------------------------------\n");
+
+    #pragma omp parallel
+    {
+        int i; // Loop counter
+
+        // ---------------------------------------------------------
+        // FIRST LOOP (with nowait)
+        // Threads will NOT wait for each other at the end of this loop.
+        // ---------------------------------------------------------
+        #pragma omp for nowait
+        for (i = 0; i < N; i++) {
+            a[i] = i + 5; // Replacing "some_expression"
+            printf("Thread %d finished calculating a[%d] = %d\n", omp_get_thread_num(), i, a[i]);
+        }
+
+        // ---------------------------------------------------------
+        // SECOND LOOP 
+        // ---------------------------------------------------------
+        #pragma omp for
+        for (i = 0; i < N; i++) {
+            // WARNING: Because of 'nowait' above, if OpenMP schedules the loop 
+            // iterations differently here, a thread might try to calculate b[i] 
+            // before another thread has actually finished calculating a[i]!
+            b[i] = some_function(a[i]); 
+            printf("Thread %d finished calculating b[%d] = %d\n", omp_get_thread_num(), i, b[i]);
+        }
+    }
+
+    printf("--------------------------------\n");
+    printf("Parallel execution finished.\n");
+
+    return 0;
+}
+
+
+#include <stdio.h>
+#include <omp.h>
+
+#define N 10000
+
+// A dummy function to simulate some work based on the loop index
+int f(int i) {
+    return i % 2; // Just returns 0 or 1
+}
+
+int main() {
+    int counter_critical = 0;
+    int counter_atomic = 0;
+
+    omp_set_num_threads(4);
+
+    // ---------------------------------------------------------
+    // FIX 1: Using #pragma omp critical
+    // ---------------------------------------------------------
+    #pragma omp parallel for shared(counter_critical)
+    for (int i = 0; i < N; i++) {
+        
+        // We do the heavy calculation OUTSIDE the locked door 
+        // so threads can calculate concurrently.
+        int local_result = f(i); 
+
+        // The Locked Door: Only one thread can execute the code inside this block at a time.
+        #pragma omp critical 
+        {
+            counter_critical += local_result; 
+        }
+    }
+    printf("Final counter using 'critical': %d\n", counter_critical);
+
+
+    // ---------------------------------------------------------
+    // FIX 2: Using #pragma omp atomic (Faster for simple math)
+    // ---------------------------------------------------------
+    #pragma omp parallel for shared(counter_atomic)
+    for (int i = 0; i < N; i++) {
+        
+        int local_result = f(i);
+
+        // The Hardware Shortcut: Safely adds to the counter in one unbreakable step.
+        // It automatically applies only to the single statement immediately following it.
+        #pragma omp atomic
+        counter_atomic += local_result; 
+    }
+    printf("Final counter using 'atomic':   %d\n", counter_atomic);
+
+    return 0;
+}
+
+
+#include <stdio.h>
+#include <omp.h>
+
+#define NUM_ITERATIONS 10
+
+int main() {
+    int shared_A = 0;
+    int shared_B = 0;
+
+    // STEP 1: Declare the locks
+    omp_lock_t lock_A;
+    omp_lock_t lock_B;
+
+    // STEP 2: Initialize the locks (Cut the keys)
+    omp_init_lock(&lock_A);
+    omp_init_lock(&lock_B);
+
+    omp_set_num_threads(4);
+
+    printf("Starting parallel execution...\n");
+    printf("--------------------------------\n");
+
+    #pragma omp parallel for
+    for (int i = 0; i < NUM_ITERATIONS; i++) {
+        int mytid = omp_get_thread_num();
+
+        // Let's have even iterations update A, and odd iterations update B
+        if (i % 2 == 0) {
+            // STEP 3: Grab the lock for A.
+            // If another thread already has lock_A, this thread waits here.
+            omp_set_lock(&lock_A); 
+            
+            printf("Thread %d LOCKED A (Iteration %d)\n", mytid, i);
+            shared_A += 1; // Safely update A
+            
+            // Simulating a tiny delay so you can see the overlap in the terminal
+            for(volatile int delay = 0; delay < 50000000; delay++); 
+            
+            printf("Thread %d UNLOCKED A\n", mytid);
+            
+            // STEP 4: Release the lock for A.
+            omp_unset_lock(&lock_A); 
+
+        } else {
+            // STEP 3: Grab the lock for B.
+            // Notice this is a totally different key! 
+            omp_set_lock(&lock_B); 
+            
+            printf("  -> Thread %d LOCKED B (Iteration %d)\n", mytid, i);
+            shared_B += 1; // Safely update B
+            
+            for(volatile int delay = 0; delay < 50000000; delay++); 
+            
+            printf("  -> Thread %d UNLOCKED B\n", mytid);
+            
+            // STEP 4: Release the lock for B.
+            omp_unset_lock(&lock_B); 
+        }
+    }
+
+    printf("--------------------------------\n");
+
+    // STEP 5: Clean up and destroy the locks to free memory
+    omp_destroy_lock(&lock_A);
+    omp_destroy_lock(&lock_B);
+
+    printf("Final shared_A: %d (Expected: 5)\n", shared_A);
+    printf("Final shared_B: %d (Expected: 5)\n", shared_B);
+
+    return 0;
+}
+
+
+
+Deadlock
+
+#include <stdio.h>
+#include <omp.h>
+
+int main() {
+    int shared_a = 0, shared_b = 0;
+    omp_lock_t locka, lockb;
+
+    omp_init_lock(&locka);
+    omp_init_lock(&lockb);
+
+    // Force OpenMP to use exactly 2 threads for our 2 sections
+    omp_set_num_threads(2);
+
+    printf("Starting Deadlock Example...\n");
+
+    #pragma omp parallel shared(shared_a, shared_b, locka, lockb)
+    #pragma omp sections nowait
+    {
+        // ------------------- THREAD 0's JOB -------------------
+        #pragma omp section
+        {
+            int tid = omp_get_thread_num();
+            omp_set_lock(&locka); 
+            printf("Thread %d LOCKED A. Doing some work...\n", tid);
+            
+            // A tiny delay to guarantee Thread 1 has time to grab Lock B
+            for(volatile int delay=0; delay<50000000; delay++); 
+            
+            printf("Thread %d waiting to LOCK B...\n", tid);
+            omp_set_lock(&lockb); // <-- DEADLOCK HAPPENS HERE
+            
+            shared_a = 10;
+            shared_b = shared_a + 5;
+            
+            omp_unset_lock(&lockb);
+            omp_unset_lock(&locka);
+        }
+
+        // ------------------- THREAD 1's JOB -------------------
+        #pragma omp section
+        {
+            int tid = omp_get_thread_num();
+            omp_set_lock(&lockb);
+            printf("Thread %d LOCKED B. Doing some work...\n", tid);
+            
+            // A tiny delay to guarantee Thread 0 has time to grab Lock A
+            for(volatile int delay=0; delay<50000000; delay++);
+            
+            printf("Thread %d waiting to LOCK A...\n", tid);
+            omp_set_lock(&locka); // <-- DEADLOCK HAPPENS HERE
+            
+            shared_b = 20;
+            shared_a = shared_b + 5;
+            
+            omp_unset_lock(&locka);
+            omp_unset_lock(&lockb);
+        }
+    }
+
+    // You will never see this line print.
+    printf("Finished successfully!\n"); 
+    
+    omp_destroy_lock(&locka);
+    omp_destroy_lock(&lockb);
+    return 0;
+}
+
+
+FIX
+
+
+#include <stdio.h>
+#include <omp.h>
+
+int main() {
+    int shared_a = 0, shared_b = 0;
+    omp_lock_t locka, lockb;
+
+    omp_init_lock(&locka);
+    omp_init_lock(&lockb);
+
+    omp_set_num_threads(2);
+
+    printf("Starting Fixed Example...\n");
+
+    #pragma omp parallel shared(shared_a, shared_b, locka, lockb)
+    #pragma omp sections nowait
+    {
+        // ------------------- THREAD 0's JOB -------------------
+        #pragma omp section
+        {
+            int tid = omp_get_thread_num();
+            
+            omp_set_lock(&locka); // 1st: Lock A
+            printf("Thread %d LOCKED A.\n", tid);
+            
+            omp_set_lock(&lockb); // 2nd: Lock B
+            printf("Thread %d LOCKED B.\n", tid);
+            
+            shared_a += 10;
+            shared_b += shared_a;
+            
+            // Best practice: Unlock in the reverse order you locked them (LIFO)
+            omp_unset_lock(&lockb); 
+            omp_unset_lock(&locka);
+            printf("Thread %d UNLOCKED both.\n", tid);
+        }
+
+        // ------------------- THREAD 1's JOB -------------------
+        #pragma omp section
+        {
+            int tid = omp_get_thread_num();
+            
+            // THE FIX: Lock in the exact same order as Thread 0
+            omp_set_lock(&locka); // 1st: Lock A
+            printf("Thread %d LOCKED A.\n", tid);
+            
+            omp_set_lock(&lockb); // 2nd: Lock B
+            printf("Thread %d LOCKED B.\n", tid);
+            
+            shared_b += 20;
+            shared_a += shared_b;
+            
+            // Unlock in reverse order
+            omp_unset_lock(&lockb);
+            omp_unset_lock(&locka);
+            printf("Thread %d UNLOCKED both.\n", tid);
+        }
+    }
+
+    printf("Finished successfully! No deadlocks.\n"); 
+    printf("Final A: %d, Final B: %d\n", shared_a, shared_b);
+    
+    omp_destroy_lock(&locka);
+    omp_destroy_lock(&lockb);
+    return 0;
+}
+
+
+RECURSIVE
+
+#include <stdio.h>
+#include <omp.h>
+
+#define MAX_N 50
+
+// Global arrays for our Memoization (caching) and Locking
+int value[MAX_N] = {0};
+int done[MAX_N] = {0};
+omp_lock_t dolock[MAX_N]; // An array of locks! One lock for each number.
+
+// The Optimized, Parallel, Task-Based Fibonacci Function
+int fib(int n) {
+    // 1. BASE CASE: Crucial for recursion to actually stop.
+    if (n < 2) {
+        return 1; 
+    }
+
+    // 2. FAST CHECK: If already computed, return the cached value immediately.
+    if (done[n]) {
+        return value[n];
+    }
+
+    // 3. THE LOCK: Lock this specific 'n' so only one thread computes it.
+    omp_set_lock(&dolock[n]);
+    
+    // Double-check 'done' inside the lock. Another thread might have finished 
+    // computing it while this thread was waiting for the lock!
+    if (!done[n]) {
+        int i, j;
+        
+        // Spawn a task for the left branch of the tree.
+        // 'firstprivate(n)' gives the task its own personal copy of 'n'.
+        // 'shared(i)' allows the task to write its final answer into our 'i' variable.
+        #pragma omp task shared(i) firstprivate(n)
+        i = fib(n - 1);
+        
+        // Spawn a task for the right branch of the tree.
+        #pragma omp task shared(j) firstprivate(n)
+        j = fib(n - 2);
+        
+        // Wait for both child tasks to finish executing.
+        #pragma omp taskwait
+        
+        // Both answers are ready. Combine them and cache the result safely.
+        value[n] = i + j;
+        done[n] = 1;
+    }
+    
+    // 4. UNLOCK: Let others know the value is ready to be read.
+    omp_unset_lock(&dolock[n]);
+    
+    return value[n];
+}
+
+int main() {
+    int target_n = 15; // The Fibonacci number we want to compute
+    
+    // Initialize our array of locks
+    for (int i = 0; i < MAX_N; i++) {
+        omp_init_lock(&dolock[i]);
+    }
+
+    omp_set_num_threads(4);
+    printf("Computing Fibonacci(%d) using Tasks...\n", target_n);
+
+    int final_result;
+
+    // Start the parallel region
+    #pragma omp parallel
+    {
+        // IMPORTANT: We only want ONE thread to kick off the very first fib() call.
+        // That single thread will spawn tasks, which will spawn more tasks, 
+        // and the other 3 idle threads will jump in to help clear the task pool.
+        #pragma omp single
+        {
+            final_result = fib(target_n);
+        }
+    }
+
+    printf("Result: fib(%d) = %d\n", target_n, final_result);
+
+    // Clean up the locks to free memory
+    for (int i = 0; i < MAX_N; i++) {
+        omp_destroy_lock(&dolock[i]);
+    }
+
+    return 0;
+}
