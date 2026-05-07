@@ -1,0 +1,933 @@
+SET B
+
+1. 
+
+import numpy as np
+import cv2 as cv
+import matplotlib.pyplot as plt
+
+
+# ---------------------------------------------------
+# Manual Convolution
+# ---------------------------------------------------
+
+def convolution(image, kernel):
+
+    k = kernel.shape[0]
+    pad = k // 2
+
+    padded = np.pad(image, pad, mode='constant')
+
+    output = np.zeros_like(image, dtype=np.float32)
+
+    for i in range(image.shape[0]):
+        for j in range(image.shape[1]):
+
+            region = padded[i:i+k, j:j+k]
+
+            output[i, j] = np.sum(region * kernel)
+
+    return output
+
+
+# ---------------------------------------------------
+# MSE
+# ---------------------------------------------------
+
+def compute_mse(original, processed):
+
+    mse = np.mean((original - processed) ** 2)
+
+    return mse
+
+
+# ---------------------------------------------------
+# PSNR
+# ---------------------------------------------------
+
+def compute_psnr(mse):
+
+    if mse == 0:
+        return float('inf')
+
+    psnr = 10 * np.log10((255 ** 2) / mse)
+
+    return psnr
+
+
+# ---------------------------------------------------
+# Read Image
+# ---------------------------------------------------
+
+image = cv.imread("image1.jpeg", 0)
+
+if image is None:
+    print("Image not found")
+    exit()
+
+image = image.astype(np.float32)
+
+
+# ---------------------------------------------------
+# Laplacian Kernel
+# ---------------------------------------------------
+
+laplacian_kernel = np.array([
+    [0, 1, 0],
+    [1,-4, 1],
+    [0, 1, 0]
+], dtype=np.float32)
+
+
+# ---------------------------------------------------
+# Laplacian Edge Detection
+# ---------------------------------------------------
+
+laplacian = convolution(image, laplacian_kernel)
+
+
+# ---------------------------------------------------
+# Sharpening
+# Sharpened = Original + k * Laplacian
+# ---------------------------------------------------
+
+k_values = [0.5, 1.0, 1.5]
+
+sharpened_images = []
+
+for k in k_values:
+
+    sharpened = image + (k * laplacian)
+
+    sharpened = np.clip(sharpened, 0, 255)
+
+    sharpened_images.append(sharpened)
+
+
+# ---------------------------------------------------
+# Sobel Kernels
+# ---------------------------------------------------
+
+sobel_x_kernel = np.array([
+    [-1, 0, 1],
+    [-2, 0, 2],
+    [-1, 0, 1]
+], dtype=np.float32)
+
+
+sobel_y_kernel = np.array([
+    [-1,-2,-1],
+    [ 0, 0, 0],
+    [ 1, 2, 1]
+], dtype=np.float32)
+
+
+# ---------------------------------------------------
+# Sobel X and Sobel Y
+# ---------------------------------------------------
+
+gx = convolution(image, sobel_x_kernel)
+
+gy = convolution(image, sobel_y_kernel)
+
+
+# ---------------------------------------------------
+# Gradient Magnitude
+# ---------------------------------------------------
+
+magnitude = np.sqrt(gx**2 + gy**2)
+
+
+# ---------------------------------------------------
+# Gradient Direction
+# ---------------------------------------------------
+
+direction = np.arctan2(gy, gx)
+
+
+# ---------------------------------------------------
+# Normalize for Display
+# ---------------------------------------------------
+
+lap_disp = np.abs(laplacian)
+
+lap_disp = (lap_disp / lap_disp.max()) * 255
+
+mag_disp = (magnitude / magnitude.max()) * 255
+
+lap_disp = lap_disp.astype(np.uint8)
+
+mag_disp = mag_disp.astype(np.uint8)
+
+
+# ---------------------------------------------------
+# Compute PSNR and MSE
+# ---------------------------------------------------
+
+print("\nImage Quality Metrics:\n")
+
+for i in range(len(k_values)):
+
+    sharpened = sharpened_images[i]
+
+    mse = compute_mse(image, sharpened)
+
+    psnr = compute_psnr(mse)
+
+    print(f"k = {k_values[i]}")
+    print("MSE  :", mse)
+    print("PSNR :", psnr)
+    print()
+
+
+# ---------------------------------------------------
+# Convert Sharpened Images to uint8
+# ---------------------------------------------------
+
+for i in range(len(sharpened_images)):
+
+    sharpened_images[i] = sharpened_images[i].astype(np.uint8)
+
+
+# ---------------------------------------------------
+# Plot Results
+# ---------------------------------------------------
+
+plt.figure(figsize=(18,10))
+
+
+# Original
+plt.subplot(2,3,1)
+plt.title("Original")
+plt.imshow(image.astype(np.uint8), cmap='gray')
+plt.axis('off')
+
+
+# Laplacian
+plt.subplot(2,3,2)
+plt.title("Laplacian Edges")
+plt.imshow(lap_disp, cmap='gray')
+plt.axis('off')
+
+
+# Sobel Magnitude
+plt.subplot(2,3,3)
+plt.title("Sobel Magnitude")
+plt.imshow(mag_disp, cmap='gray')
+plt.axis('off')
+
+
+# Sharpened k=0.5
+plt.subplot(2,3,4)
+plt.title("Sharpened (k=0.5)")
+plt.imshow(sharpened_images[0], cmap='gray')
+plt.axis('off')
+
+
+# Sharpened k=1.0
+plt.subplot(2,3,5)
+plt.title("Sharpened (k=1.0)")
+plt.imshow(sharpened_images[1], cmap='gray')
+plt.axis('off')
+
+
+# Sharpened k=1.5
+plt.subplot(2,3,6)
+plt.title("Sharpened (k=1.5)")
+plt.imshow(sharpened_images[2], cmap='gray')
+plt.axis('off')
+
+
+plt.tight_layout()
+plt.show()
+
+
+
+2. 
+
+import numpy as np
+import cv2 as cv
+import matplotlib.pyplot as plt
+
+
+
+# ---------------------------------------------------
+# Compute Histogram
+# ---------------------------------------------------
+
+def compute_histogram(image):
+
+    hist = np.zeros(256, dtype=int)
+
+    for i in range(image.shape[0]):
+        for j in range(image.shape[1]):
+
+            pixel = image[i,j]
+
+            hist[pixel] += 1
+
+    return hist
+
+
+
+# ---------------------------------------------------
+# Histogram Equalization (Manual)
+# ---------------------------------------------------
+
+def histogram_equalization(image):
+
+    hist = compute_histogram(image)
+
+    total_pixels = image.shape[0] * image.shape[1]
+
+
+    # PDF
+    pdf = hist / total_pixels
+
+
+    # CDF
+    cdf = np.cumsum(pdf)
+
+
+    # Mapping
+    mapping = np.round(cdf * 255).astype(np.uint8)
+
+
+    # Apply Mapping
+    equalized = np.zeros_like(image)
+
+    for i in range(image.shape[0]):
+        for j in range(image.shape[1]):
+
+            equalized[i,j] = mapping[image[i,j]]
+
+
+    return equalized
+
+
+
+# ---------------------------------------------------
+# Histogram Specification
+# ---------------------------------------------------
+
+def histogram_specification(source, reference):
+
+    # Histograms
+    hist_source = compute_histogram(source)
+    hist_ref = compute_histogram(reference)
+
+
+    # PDFs
+    pdf_source = hist_source / source.size
+    pdf_ref = hist_ref / reference.size
+
+
+    # CDFs
+    cdf_source = np.cumsum(pdf_source)
+    cdf_ref = np.cumsum(pdf_ref)
+
+
+    # Mapping
+    mapping = np.zeros(256, dtype=np.uint8)
+
+    for i in range(256):
+
+        diff = np.abs(cdf_source[i] - cdf_ref)
+
+        mapping[i] = np.argmin(diff)
+
+
+    # Apply Mapping
+    specified = np.zeros_like(source)
+
+    for i in range(source.shape[0]):
+        for j in range(source.shape[1]):
+
+            specified[i,j] = mapping[source[i,j]]
+
+
+    return specified
+
+
+
+# ---------------------------------------------------
+# Read Images
+# ---------------------------------------------------
+
+image = cv.imread("image1.jpeg", 0)
+
+reference = cv.imread("reference.jpg", 0)
+
+
+if image is None or reference is None:
+    print("Image not found")
+    exit()
+
+
+
+# ---------------------------------------------------
+# Original Histogram
+# ---------------------------------------------------
+
+hist_original = compute_histogram(image)
+
+
+
+# ---------------------------------------------------
+# Global Histogram Equalization
+# ---------------------------------------------------
+
+equalized = histogram_equalization(image)
+
+hist_equalized = compute_histogram(equalized)
+
+
+
+# ---------------------------------------------------
+# Divide Image into Four Regions
+# ---------------------------------------------------
+
+rows, cols = image.shape
+
+mid_r = rows // 2
+mid_c = cols // 2
+
+
+top_left = image[:mid_r, :mid_c]
+
+top_right = image[:mid_r, mid_c:]
+
+bottom_left = image[mid_r:, :mid_c]
+
+bottom_right = image[mid_r:, mid_c:]
+
+
+
+# ---------------------------------------------------
+# Equalize Each Region Independently
+# ---------------------------------------------------
+
+top_left_eq = histogram_equalization(top_left)
+
+top_right_eq = histogram_equalization(top_right)
+
+bottom_left_eq = histogram_equalization(bottom_left)
+
+bottom_right_eq = histogram_equalization(bottom_right)
+
+
+
+# ---------------------------------------------------
+# Recombine Regions
+# ---------------------------------------------------
+
+top = np.hstack((top_left_eq, top_right_eq))
+
+bottom = np.hstack((bottom_left_eq, bottom_right_eq))
+
+regional_equalized = np.vstack((top, bottom))
+
+
+
+# ---------------------------------------------------
+# Histogram Specification
+# ---------------------------------------------------
+
+specified = histogram_specification(image, reference)
+
+
+
+# ---------------------------------------------------
+# Plot Results
+# ---------------------------------------------------
+
+plt.figure(figsize=(18,12))
+
+
+# Original Image
+plt.subplot(3,3,1)
+plt.title("Original Image")
+plt.imshow(image, cmap='gray')
+plt.axis('off')
+
+
+# Original Histogram
+plt.subplot(3,3,2)
+plt.title("Original Histogram")
+plt.plot(hist_original)
+
+
+# Equalized Image
+plt.subplot(3,3,4)
+plt.title("Equalized Image")
+plt.imshow(equalized, cmap='gray')
+plt.axis('off')
+
+
+# Equalized Histogram
+plt.subplot(3,3,5)
+plt.title("Equalized Histogram")
+plt.plot(hist_equalized)
+
+
+# Regional Equalization
+plt.subplot(3,3,7)
+plt.title("Regional Equalization")
+plt.imshow(regional_equalized, cmap='gray')
+plt.axis('off')
+
+
+# Reference Image
+plt.subplot(3,3,8)
+plt.title("Reference Image")
+plt.imshow(reference, cmap='gray')
+plt.axis('off')
+
+
+# Histogram Specification Result
+plt.subplot(3,3,9)
+plt.title("Histogram Specification")
+plt.imshow(specified, cmap='gray')
+plt.axis('off')
+
+
+plt.tight_layout()
+plt.show()
+
+
+
+
+SET-A
+
+
+import numpy as np
+import cv2 as cv
+import matplotlib.pyplot as plt
+
+from skimage.metrics import structural_similarity as ssim
+
+
+
+# ---------------------------------------------------
+# Read Color Image
+# ---------------------------------------------------
+
+image = cv.imread("image.jpg")
+
+if image is None:
+    print("Image not found")
+    exit()
+
+
+# Convert to grayscale
+gray = cv.cvtColor(image, cv.COLOR_BGR2GRAY)
+
+gray = gray.astype(np.float32)
+
+
+
+# ---------------------------------------------------
+# DFT
+# ---------------------------------------------------
+
+dft = np.fft.fft2(gray)
+
+dft_shift = np.fft.fftshift(dft)
+
+
+
+# ---------------------------------------------------
+# Log Magnitude Spectrum
+# ---------------------------------------------------
+
+magnitude_spectrum = np.log(1 + np.abs(dft_shift))
+
+
+
+# ---------------------------------------------------
+# Dimensions
+# ---------------------------------------------------
+
+rows, cols = gray.shape
+
+crow = rows // 2
+ccol = cols // 2
+
+
+
+# ===================================================
+# LOW PASS FILTERS
+# ===================================================
+
+low_pass_results = []
+
+percentages_lp = [0.05, 0.15]
+
+
+for p in percentages_lp:
+
+    # Radius
+    radius = int(min(rows, cols) * p)
+
+    # Mask
+    mask = np.zeros((rows, cols), dtype=np.uint8)
+
+    cv.circle(mask, (ccol, crow), radius, 1, -1)
+
+
+    # Apply mask
+    filtered = dft_shift * mask
+
+
+    # Inverse DFT
+    inverse_shift = np.fft.ifftshift(filtered)
+
+    reconstructed = np.fft.ifft2(inverse_shift)
+
+    reconstructed = np.abs(reconstructed)
+
+
+    low_pass_results.append(reconstructed)
+
+
+
+# ===================================================
+# HIGH PASS FILTERS
+# ===================================================
+
+high_pass_results = []
+
+percentages_hp = [0.10, 0.25]
+
+
+for p in percentages_hp:
+
+    radius = int(min(rows, cols) * p)
+
+    mask = np.ones((rows, cols), dtype=np.uint8)
+
+    cv.circle(mask, (ccol, crow), radius, 0, -1)
+
+
+    filtered = dft_shift * mask
+
+
+    inverse_shift = np.fft.ifftshift(filtered)
+
+    reconstructed = np.fft.ifft2(inverse_shift)
+
+    reconstructed = np.abs(reconstructed)
+
+
+    high_pass_results.append(reconstructed)
+
+
+
+# ---------------------------------------------------
+# Metrics
+# ---------------------------------------------------
+
+print("\nLOW PASS FILTER RESULTS\n")
+
+for i in range(len(low_pass_results)):
+
+    result = low_pass_results[i]
+
+    mse = np.mean((gray - result) ** 2)
+
+    ssim_value = ssim(
+        gray.astype(np.uint8),
+        result.astype(np.uint8)
+    )
+
+    print(f"Low Pass {int(percentages_lp[i]*100)}%")
+    print("MSE  :", mse)
+    print("SSIM :", ssim_value)
+    print()
+
+
+
+print("\nHIGH PASS FILTER RESULTS\n")
+
+for i in range(len(high_pass_results)):
+
+    result = high_pass_results[i]
+
+    mse = np.mean((gray - result) ** 2)
+
+    ssim_value = ssim(
+        gray.astype(np.uint8),
+        result.astype(np.uint8)
+    )
+
+    print(f"High Pass {int(percentages_hp[i]*100)}%")
+    print("MSE  :", mse)
+    print("SSIM :", ssim_value)
+    print()
+
+
+
+# ---------------------------------------------------
+# Normalize Images for Display
+# ---------------------------------------------------
+
+magnitude_display = (
+    magnitude_spectrum / magnitude_spectrum.max()
+) * 255
+
+magnitude_display = magnitude_display.astype(np.uint8)
+
+
+
+# ---------------------------------------------------
+# Plot Results
+# ---------------------------------------------------
+
+plt.figure(figsize=(18,12))
+
+
+# Original
+plt.subplot(2,3,1)
+plt.title("Original Image")
+plt.imshow(gray, cmap='gray')
+plt.axis('off')
+
+
+# Spectrum
+plt.subplot(2,3,2)
+plt.title("Log Magnitude Spectrum")
+plt.imshow(magnitude_display, cmap='gray')
+plt.axis('off')
+
+
+# Low Pass 5%
+plt.subplot(2,3,3)
+plt.title("Low Pass 5%")
+plt.imshow(low_pass_results[0], cmap='gray')
+plt.axis('off')
+
+
+# Low Pass 15%
+plt.subplot(2,3,4)
+plt.title("Low Pass 15%")
+plt.imshow(low_pass_results[1], cmap='gray')
+plt.axis('off')
+
+
+# High Pass 10%
+plt.subplot(2,3,5)
+plt.title("High Pass 10%")
+plt.imshow(high_pass_results[0], cmap='gray')
+plt.axis('off')
+
+
+# High Pass 25%
+plt.subplot(2,3,6)
+plt.title("High Pass 25%")
+plt.imshow(high_pass_results[1], cmap='gray')
+plt.axis('off')
+
+
+plt.tight_layout()
+plt.show()
+
+
+
+2. 
+
+import numpy as np
+import cv2 as cv
+import matplotlib.pyplot as plt
+
+
+
+# ---------------------------------------------------
+# Build GLCM
+# ---------------------------------------------------
+
+def build_glcm(image, d, theta, levels):
+
+    glcm = np.zeros((levels, levels), dtype=np.float32)
+
+
+    # Direction
+    if theta == 0:
+        dx, dy = 0, d
+
+    elif theta == 45:
+        dx, dy = -d, d
+
+    elif theta == 90:
+        dx, dy = -d, 0
+
+    elif theta == 135:
+        dx, dy = -d, -d
+
+    else:
+        raise ValueError("Unsupported angle")
+
+
+    rows, cols = image.shape
+
+
+    # Compute GLCM
+    for i in range(rows):
+        for j in range(cols):
+
+            ni = i + dx
+            nj = j + dy
+
+            if (0 <= ni < rows) and (0 <= nj < cols):
+
+                current = image[i, j]
+                neighbor = image[ni, nj]
+
+                glcm[current, neighbor] += 1
+
+
+    return glcm
+
+
+
+# ---------------------------------------------------
+# Extract Features
+# ---------------------------------------------------
+
+def extract_features(glcm, levels):
+
+    # Normalize
+    glcm = glcm / glcm.sum()
+
+
+    # Contrast
+    contrast = 0
+
+    for i in range(levels):
+        for j in range(levels):
+
+            contrast += ((i - j) ** 2) * glcm[i, j]
+
+
+    # Energy
+    energy = 0
+
+    for i in range(levels):
+        for j in range(levels):
+
+            energy += glcm[i, j] ** 2
+
+
+    return contrast, energy
+
+
+
+# ---------------------------------------------------
+# Read Image
+# ---------------------------------------------------
+
+image = cv.imread("image.jpg", 0)
+
+if image is None:
+    print("Image not found")
+    exit()
+
+
+
+# ---------------------------------------------------
+# Reduce Gray Levels to 8
+# 0-255 --> 0-7
+# ---------------------------------------------------
+
+levels = 8
+
+image = image // 32
+
+
+
+# ---------------------------------------------------
+# Define Offsets
+# ---------------------------------------------------
+
+offsets = [
+    (1, 0),
+    (1, 45),
+    (2, 90),
+    (2, 135)
+]
+
+
+
+# ---------------------------------------------------
+# Compute GLCMs and Features
+# ---------------------------------------------------
+
+results = []
+
+for d, theta in offsets:
+
+    glcm = build_glcm(
+        image=image,
+        d=d,
+        theta=theta,
+        levels=levels
+    )
+
+    # Normalize GLCM
+    normalized_glcm = glcm / glcm.sum()
+
+
+    # Extract Features
+    contrast, energy = extract_features(glcm, levels)
+
+
+    results.append(
+        (d, theta, normalized_glcm, contrast, energy)
+    )
+
+
+
+# ---------------------------------------------------
+# Display Results
+# ---------------------------------------------------
+
+plt.figure(figsize=(12,10))
+
+for idx, result in enumerate(results):
+
+    d, theta, glcm, contrast, energy = result
+
+    plt.subplot(2,2,idx+1)
+
+    plt.imshow(glcm, cmap='gray')
+
+    plt.title(
+        f"d={d}, theta={theta}\n"
+        f"Contrast={contrast:.3f}, "
+        f"Energy={energy:.3f}"
+    )
+
+    plt.xlabel("Neighbor Pixel")
+
+    plt.ylabel("Current Pixel")
+
+
+plt.tight_layout()
+plt.show()
+
+
+
+# ---------------------------------------------------
+# Print Features
+# ---------------------------------------------------
+
+for result in results:
+
+    d, theta, glcm, contrast, energy = result
+
+    print(f"\nDistance = {d}, Theta = {theta}")
+
+    print("Contrast :", contrast)
+
+    print("Energy   :", energy)
+
+
