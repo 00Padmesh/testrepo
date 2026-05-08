@@ -575,3 +575,56 @@ int main() {
 
 mpicc ring.c -o ring
 mpirun -np 4 ./ring
+
+
+
+#include <mpi.h>
+#include <stdio.h>
+
+int main(int argc, char *argv[]) {
+
+    int rank, size;
+    char message[100];
+    MPI_Status status;
+
+    MPI_Init(&argc, &argv);
+
+    MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+    MPI_Comm_size(MPI_COMM_WORLD, &size);
+
+    // Ensure exactly 2 processes
+    if (size != 2) {
+        if (rank == 0)
+            printf("Run the program with exactly 2 processes.\n");
+
+        MPI_Finalize();
+        return 0;
+    }
+
+    // Process 0 sends message
+    if (rank == 0) {
+
+        sprintf(message, "Hello from Process 0");
+
+        MPI_Send(message, 100, MPI_CHAR, 1, 0, MPI_COMM_WORLD);
+
+        printf("Process 0 sent message.\n");
+    }
+
+    // Process 1 receives message
+    else if (rank == 1) {
+
+        MPI_Recv(message, 100, MPI_CHAR, 0, 0,
+                 MPI_COMM_WORLD, &status);
+
+        printf("Process 1 received: %s\n", message);
+    }
+
+    MPI_Finalize();
+
+    return 0;
+}
+
+
+mpicc two_process.c -o two_process
+mpirun -np 2 ./two_process
