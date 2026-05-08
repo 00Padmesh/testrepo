@@ -1,0 +1,577 @@
+#include <mpi.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
+#define MAX_SIZE 1000000
+
+int main(int argc, char *argv[]) {
+    int rank, size;
+    int msg_size;
+    char *buffer;
+    MPI_Status status;
+
+    MPI_Init(&argc, &argv);
+    MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+    MPI_Comm_size(MPI_COMM_WORLD, &size);
+
+    // Ensure exactly 3 processes
+    if (size != 3) {
+        if (rank == 0) {
+            printf("This program requires exactly 3 processes.\n");
+        }
+        MPI_Finalize();
+        return 0;
+    }
+
+    // Start with 1 byte and double each iteration
+    for (msg_size = 1; msg_size <= MAX_SIZE; msg_size *= 2) {
+        buffer = (char *)malloc(msg_size);
+
+        // Initialize buffer (only needed for sender)
+        if (rank == 0) {
+            memset(buffer, 'A', msg_size);
+            printf("Iteration with message size: %d bytes\n", msg_size);
+
+            // Step 1: P0 sends to P1
+            MPI_Send(buffer, msg_size, MPI_CHAR, 1, 0, MPI_COMM_WORLD);
+
+            // Step 3: P0 receives from P2
+            MPI_Recv(buffer, msg_size, MPI_CHAR, 2, 0, MPI_COMM_WORLD, &status);
+        }
+        else if (rank == 1) {
+            // Step 2: P1 receives from P0
+            MPI_Recv(buffer, msg_size, MPI_CHAR, 0, 0, MPI_COMM_WORLD, &status);
+
+            // Then sends to P2
+            MPI_Send(buffer, msg_size, MPI_CHAR, 2, 0, MPI_COMM_WORLD);
+        }
+        else if (rank == 2) {
+            // Step 3: P2 receives from P1
+            MPI_Recv(buffer, msg_size, MPI_CHAR, 1, 0, MPI_COMM_WORLD, &status);
+
+            // Then sends back to P0
+            MPI_Send(buffer, msg_size, MPI_CHAR, 0, 0, MPI_COMM_WORLD);
+        }
+
+        free(buffer);
+
+        // Synchronize processes before next iteration
+        MPI_Barrier(MPI_COMM_WORLD);
+    }
+
+    MPI_Finalize();
+    return 0;
+}
+
+
+
+
+
+
+
+
+
+#include <mpi.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
+#define MAX_SIZE 1000000
+
+int main(int argc, char *argv[]) {
+
+    int rank, size;
+    int msg_size;
+    char *buffer;
+    MPI_Status status;
+
+    MPI_Init(&argc, &argv);
+
+    MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+    MPI_Comm_size(MPI_COMM_WORLD, &size);
+
+    // Require exactly 4 processes
+    if (size != 4) {
+        if (rank == 0)
+            printf("Run with exactly 4 processes.\n");
+
+        MPI_Finalize();
+        return 0;
+    }
+
+    for (msg_size = 1; msg_size <= MAX_SIZE; msg_size *= 2) {
+
+        buffer = (char *)malloc(msg_size);
+
+        if (rank == 0) {
+
+            memset(buffer, 'A', msg_size);
+
+            printf("Message size = %d bytes\n", msg_size);
+
+            // Send to Process 1
+            MPI_Send(buffer, msg_size, MPI_CHAR, 1, 0, MPI_COMM_WORLD);
+
+            // Receive from Process 3
+            MPI_Recv(buffer, msg_size, MPI_CHAR, 3, 0,
+                     MPI_COMM_WORLD, &status);
+        }
+
+        else if (rank == 1) {
+
+            // Receive from Process 0
+            MPI_Recv(buffer, msg_size, MPI_CHAR, 0, 0,
+                     MPI_COMM_WORLD, &status);
+
+            // Send to Process 2
+            MPI_Send(buffer, msg_size, MPI_CHAR, 2, 0,
+                     MPI_COMM_WORLD);
+        }
+
+        else if (rank == 2) {
+
+            // Receive from Process 1
+            MPI_Recv(buffer, msg_size, MPI_CHAR, 1, 0,
+                     MPI_COMM_WORLD, &status);
+
+            // Send to Process 3
+            MPI_Send(buffer, msg_size, MPI_CHAR, 3, 0,
+                     MPI_COMM_WORLD);
+        }
+
+        else if (rank == 3) {
+
+            // Receive from Process 2
+            MPI_Recv(buffer, msg_size, MPI_CHAR, 2, 0,
+                     MPI_COMM_WORLD, &status);
+
+            // Send back to Process 0
+            MPI_Send(buffer, msg_size, MPI_CHAR, 0, 0,
+                     MPI_COMM_WORLD);
+        }
+
+        free(buffer);
+
+        MPI_Barrier(MPI_COMM_WORLD);
+    }
+
+    MPI_Finalize();
+
+    return 0;
+}
+
+
+
+
+
+
+
+#include <stdio.h>
+#include <stdlib.h>
+#include <pthread.h>
+
+#define NUM_THREADS 5
+
+// Thread function
+void* compute_square(void* arg) {
+    int num = *(int*)arg;
+
+    // Dynamically allocate memory for result
+    int* result = (int*)malloc(sizeof(int));
+    if (result == NULL) {
+        perror("Failed to allocate memory");
+        pthread_exit(NULL);
+    }
+
+    *result = num * num;
+
+    // Return pointer to result
+    pthread_exit((void*)result);
+}
+
+int main() {
+    pthread_t threads[NUM_THREADS];
+    int inputs[NUM_THREADS] = {1, 2, 3, 4, 5};
+
+    int sum = 0;
+
+    // Create threads
+    for (int i = 0; i < NUM_THREADS; i++) {
+        if (pthread_create(&threads[i], NULL, compute_square, &inputs[i]) != 0) {
+            perror("Failed to create thread");
+            return 1;
+        }
+    }
+
+    // Join threads and collect results
+    for (int i = 0; i < NUM_THREADS; i++) {
+        void* thread_result;
+
+        if (pthread_join(threads[i], &thread_result) != 0) {
+            perror("Failed to join thread");
+            return 1;
+        }
+
+        int* result = (int*)thread_result;
+        sum += *result;
+
+        // Free dynamically allocated memory
+        free(result);
+    }
+
+    // Print final sum
+    printf("Sum of squares: %d\n", sum);
+
+    return 0;
+}
+
+
+
+#include <stdio.h>
+#include <stdlib.h>
+#include <pthread.h>
+
+#define NUM_THREADS 5
+
+// Thread function
+void* compute_square(void* arg) {
+    int num = *(int*)arg;
+
+    // Dynamically allocate memory for result
+    int* result = (int*)malloc(sizeof(int));
+
+    if (result == NULL) {
+        perror("Memory allocation failed");
+        pthread_exit(NULL);
+    }
+
+    *result = num * num;
+
+    pthread_exit((void*)result);
+}
+
+int main() {
+    pthread_t threads[NUM_THREADS];
+    int inputs[NUM_THREADS] = {1, 2, 3, 4, 5};
+
+    int max = 0;
+
+    // Create threads
+    for (int i = 0; i < NUM_THREADS; i++) {
+        if (pthread_create(&threads[i], NULL,
+                           compute_square, &inputs[i]) != 0) {
+            perror("Thread creation failed");
+            return 1;
+        }
+    }
+
+    // Join threads and find maximum
+    for (int i = 0; i < NUM_THREADS; i++) {
+        void* thread_result;
+
+        if (pthread_join(threads[i], &thread_result) != 0) {
+            perror("Thread join failed");
+            return 1;
+        }
+
+        int* result = (int*)thread_result;
+
+        if (*result > max) {
+            max = *result;
+        }
+
+        // Free allocated memory
+        free(result);
+    }
+
+    printf("Maximum square value: %d\n", max);
+
+    return 0;
+}
+
+
+#include <stdio.h>
+#include <stdlib.h>
+#include <pthread.h>
+
+#define NUM_THREADS 5
+
+// Thread function
+void* return_number(void* arg) {
+    int num = *(int*)arg;
+
+    // Dynamically allocate memory
+    int* result = (int*)malloc(sizeof(int));
+
+    if (result == NULL) {
+        perror("Memory allocation failed");
+        pthread_exit(NULL);
+    }
+
+    *result = num;
+
+    pthread_exit((void*)result);
+}
+
+int main() {
+    pthread_t threads[NUM_THREADS];
+
+    int numbers[NUM_THREADS] = {12, 45, 7, 89, 23};
+
+    int max;
+
+    // Create threads
+    for (int i = 0; i < NUM_THREADS; i++) {
+        if (pthread_create(&threads[i], NULL,
+                           return_number, &numbers[i]) != 0) {
+            perror("Thread creation failed");
+            return 1;
+        }
+    }
+
+    // Join first thread separately to initialize max
+    void* thread_result;
+
+    pthread_join(threads[0], &thread_result);
+
+    int* result = (int*)thread_result;
+    max = *result;
+
+    free(result);
+
+    // Join remaining threads and find maximum
+    for (int i = 1; i < NUM_THREADS; i++) {
+
+        pthread_join(threads[i], &thread_result);
+
+        result = (int*)thread_result;
+
+        if (*result > max) {
+            max = *result;
+        }
+
+        free(result);
+    }
+
+    printf("Maximum number = %d\n", max);
+
+    return 0;
+}
+
+
+#include <stdio.h>
+#include <stdlib.h>
+#include <pthread.h>
+
+#define NUM_THREADS 10
+
+// First 10 prime numbers
+int primes[NUM_THREADS] = {2, 3, 5, 7, 11, 13, 17, 19, 23, 29};
+
+// Function to compute factorial
+unsigned long long factorial(int n) {
+    unsigned long long fact = 1;
+
+    for (int i = 1; i <= n; i++) {
+        fact = fact * i;
+    }
+
+    return fact;
+}
+
+// Thread function
+void* compute_factorial(void* arg) {
+
+    // Get index passed to thread
+    int index = *(int*)arg;
+
+    int prime = primes[index];
+
+    // Dynamically allocate memory for result
+    unsigned long long* result =
+        (unsigned long long*)malloc(sizeof(unsigned long long));
+
+    if (result == NULL) {
+        perror("Memory allocation failed");
+        pthread_exit(NULL);
+    }
+
+    *result = factorial(prime);
+
+    printf("Thread %d -> %d! = %llu\n",
+           index, prime, *result);
+
+    pthread_exit((void*)result);
+}
+
+int main() {
+
+    pthread_t threads[NUM_THREADS];
+
+    // Separate index array to avoid race condition
+    int indices[NUM_THREADS];
+
+    unsigned long long sum = 0;
+
+    // Create threads
+    for (int i = 0; i < NUM_THREADS; i++) {
+
+        indices[i] = i;
+
+        if (pthread_create(&threads[i],
+                           NULL,
+                           compute_factorial,
+                           &indices[i]) != 0) {
+
+            perror("Thread creation failed");
+            return 1;
+        }
+    }
+
+    // Join threads and collect results
+    for (int i = 0; i < NUM_THREADS; i++) {
+
+        void* thread_result;
+
+        if (pthread_join(threads[i],
+                         &thread_result) != 0) {
+
+            perror("Thread join failed");
+            return 1;
+        }
+
+        unsigned long long* result =
+            (unsigned long long*)thread_result;
+
+        sum += *result;
+
+        // Free dynamically allocated memory
+        free(result);
+    }
+
+    printf("\nSum of all factorials = %llu\n", sum);
+
+    return 0;
+}
+
+
+#include <stdio.h>
+#include <stdlib.h>
+#include <pthread.h>
+
+#define NUM_THREADS 10
+
+// Array of integers
+int arr[NUM_THREADS] = {6, 10, 28, 15, 496,
+                        12, 20, 8128, 18, 30};
+
+// Shared global variable
+int perfect_count = 0;
+
+// Mutex for synchronization
+pthread_mutex_t mutex;
+
+// Function to check perfect number
+int isPerfect(int n) {
+
+    int sum = 0;
+
+    // Find proper divisors
+    for (int i = 1; i <= n / 2; i++) {
+
+        if (n % i == 0) {
+            sum += i;
+        }
+    }
+
+    return (sum == n);
+}
+
+// Thread function
+void* checkPerfect(void* arg) {
+
+    int index = *(int*)arg;
+
+    int num = arr[index];
+
+    // Check if perfect
+    if (isPerfect(num)) {
+
+        // Mutex lock before updating shared variable
+        pthread_mutex_lock(&mutex);
+
+        perfect_count++;
+
+        pthread_mutex_unlock(&mutex);
+
+        // Dynamically allocate memory
+        int* result = (int*)malloc(sizeof(int));
+
+        if (result == NULL) {
+            perror("Memory allocation failed");
+            pthread_exit(NULL);
+        }
+
+        *result = num;
+
+        pthread_exit((void*)result);
+    }
+
+    // Return NULL if not perfect
+    pthread_exit(NULL);
+}
+
+int main() {
+
+    pthread_t threads[NUM_THREADS];
+
+    int indices[NUM_THREADS];
+
+    // Initialize mutex
+    pthread_mutex_init(&mutex, NULL);
+
+    // Create threads
+    for (int i = 0; i < NUM_THREADS; i++) {
+
+        indices[i] = i;
+
+        pthread_create(&threads[i],
+                       NULL,
+                       checkPerfect,
+                       &indices[i]);
+    }
+
+    printf("Perfect numbers found:\n");
+
+    // Join threads
+    for (int i = 0; i < NUM_THREADS; i++) {
+
+        void* thread_result;
+
+        pthread_join(threads[i], &thread_result);
+
+        // Check NULL return
+        if (thread_result != NULL) {
+
+            int* result = (int*)thread_result;
+
+            printf("%d\n", *result);
+
+            // Free allocated memory
+            free(result);
+        }
+    }
+
+    printf("\nTotal perfect numbers = %d\n",
+           perfect_count);
+
+    // Destroy mutex
+    pthread_mutex_destroy(&mutex);
+
+    return 0;
+}
+
+
+mpicc ring.c -o ring
+mpirun -np 4 ./ring
